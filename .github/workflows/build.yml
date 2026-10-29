@@ -19,11 +19,6 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.5'
-
       - name: Generate X200T PureCam Android Project
         run: |
           mkdir -p app/src/main/java/com/ss/android/ugc/aweme
@@ -195,7 +190,6 @@ jobs:
               private var lensFacing = CameraSelector.LENS_FACING_BACK
               private var currentZoom = 1.0f
 
-              // 0 = PURE RAW-JPEG, 1 = GCAM DETAIL+, 2 = PORTRAIT DSLR
               private var captureMode = 1
               private var lastSavedUri: Uri? = null
 
@@ -234,7 +228,6 @@ jobs:
                       FrameLayout.LayoutParams.MATCH_PARENT
                   ))
 
-                  // Top Info Bar
                   statusText = TextView(this).apply {
                       text = "X200T PureCam | ISP Beauty: OFF | 100% Detail"
                       setTextColor(Color.parseColor("#00E676"))
@@ -249,14 +242,12 @@ jobs:
                       Gravity.TOP
                   ))
 
-                  // Bottom Controls Layout
                   val bottomLayout = LinearLayout(this).apply {
                       orientation = LinearLayout.VERTICAL
                       setBackgroundColor(Color.parseColor("#AA000000"))
                       setPadding(24, 24, 24, 48)
                   }
 
-                  // Zoom Row (0.6x UW, 1x Main, 2x Lossless, 3x Tele)
                   val zoomRow = LinearLayout(this).apply {
                       orientation = LinearLayout.HORIZONTAL
                       gravity = Gravity.CENTER
@@ -272,7 +263,6 @@ jobs:
                   }
                   bottomLayout.addView(zoomRow)
 
-                  // Exposure (EV) Slider for Highlight Preservation
                   val evSeek = SeekBar(this).apply {
                       max = 20
                       progress = 10
@@ -288,7 +278,6 @@ jobs:
                   }
                   bottomLayout.addView(evSeek)
 
-                  // Main Action Row
                   val actionRow = LinearLayout(this).apply {
                       orientation = LinearLayout.HORIZONTAL
                       gravity = Gravity.CENTER_VERTICAL
@@ -346,7 +335,6 @@ jobs:
                       Gravity.BOTTOM
                   ))
 
-                  // Tap to Focus
                   previewView.setOnTouchListener { _, event ->
                       if (event.action == MotionEvent.ACTION_UP) {
                           val factory = previewView.meteringPointFactory
@@ -393,7 +381,6 @@ jobs:
                           .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                           .setJpegQuality(100)
 
-                      // Hardware ISP Override: Kill Vivo Face Beauty & Smoothing
                       val previewExt = Camera2Interop.Extender(previewBuilder)
                       val captureExt = Camera2Interop.Extender(captureBuilder)
 
@@ -428,7 +415,6 @@ jobs:
                   val chars = Camera2CameraInfo.from(cam.cameraInfo)
                   val nrModes = chars.getCameraCharacteristic(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES) ?: intArrayOf()
 
-                  // Choose MINIMAL or ZSL or FAST to bypass Vivo's heavy multi-frame skin smoothing
                   val bestNrMode = when {
                       nrModes.contains(CameraMetadata.NOISE_REDUCTION_MODE_MINIMAL) -> CameraMetadata.NOISE_REDUCTION_MODE_MINIMAL
                       nrModes.contains(CameraMetadata.NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG) -> CameraMetadata.NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG
@@ -447,4 +433,16 @@ jobs:
               private fun takePurePhoto() {
                   val capture = imageCapture ?: return
                   shutterBtn.isEnabled = false
-                  statusText.text = "Ca
+                  statusText.text = "Capturing 100% Uncompressed Sensor Data..."
+
+                  capture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
+                      override fun onCaptureSuccess(image: ImageProxy) {
+                          try {
+                              val buffer = image.planes[0].buffer
+                              val bytes = ByteArray(buffer.remaining())
+                              buffer.get(bytes)
+                              val rot = image.imageInfo.rotationDegrees
+                              image.close()
+
+                              var bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                
